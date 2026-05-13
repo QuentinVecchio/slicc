@@ -256,6 +256,26 @@
         }
       }
 
+      var connectReadyRetries = 0;
+      var MAX_CONNECT_READY_RETRIES = 5;
+      var connectReadyRetryTimer = null;
+
+      function retryConnectReady() {
+        if (connectReadyRetries >= MAX_CONNECT_READY_RETRIES) {
+          providerListEl.innerHTML = '';
+          var err = document.createElement('div');
+          err.className = 'meta';
+          err.style.color = 'var(--s2-negative, #c83a3a)';
+          err.textContent = 'Could not load providers. Please reload and try again.';
+          providerListEl.appendChild(err);
+          return;
+        }
+        connectReadyRetries++;
+        connectReadyRetryTimer = setTimeout(function () {
+          slicc.lick({ action: 'connect-ready' });
+        }, 600 * connectReadyRetries);
+      }
+
       function renderProviders() {
         providerListEl.innerHTML = '';
         if (!providers.length) {
@@ -264,6 +284,10 @@
           empty.textContent = 'Loading providers…';
           providerListEl.appendChild(empty);
           return;
+        }
+        if (connectReadyRetryTimer) {
+          clearTimeout(connectReadyRetryTimer);
+          connectReadyRetryTimer = null;
         }
         providers.forEach(function (p) {
           var row = document.createElement('div');
@@ -443,6 +467,10 @@
           // The dip used to read `msg.models` to populate a per-provider
           // model dropdown; that responsibility now lives in the chat
           // header so we deliberately ignore the models map.
+          if (!providers.length) {
+            retryConnectReady();
+            return;
+          }
           renderProviders();
         } else if (msg.type === 'slicc-already-connected') {
           // Reload of a chat that already finished onboarding —
@@ -470,6 +498,19 @@
       // Tell the parent we're ready so it can flush the provider catalogue.
       slicc.lick({ action: 'connect-ready' });
       renderProviders();
+
+      // Watchdog: if slicc-providers doesn't arrive within 1.5s (VFS write
+      // race from ALWAYS_OVERWRITE_SHARED), re-fire connect-ready.
+      var connectReadyWatchdog = setTimeout(function () {
+        if (!providers.length) retryConnectReady();
+      }, 1500);
+      document.addEventListener('slicc-message', function watchdogClear(e) {
+        var t = (e.detail || {}).type;
+        if (t === 'slicc-providers' || t === 'slicc-already-connected') {
+          clearTimeout(connectReadyWatchdog);
+          document.removeEventListener('slicc-message', watchdogClear);
+        }
+      });
     </script>
   </body>
 </html>

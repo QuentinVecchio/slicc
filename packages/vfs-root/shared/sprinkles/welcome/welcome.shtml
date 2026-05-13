@@ -553,11 +553,11 @@
         if (!profile.name)    profile.name    = (document.getElementById('nameIn').value || '').trim();
         if (!profile.company) profile.company = (document.getElementById('companyIn').value || '').trim();
 
-        document.getElementById('s' + cur).classList.remove('active');
-        document.getElementById('sDone').classList.add('active');
-        document.getElementById('footerArea').style.display = 'none';
-        document.getElementById('backBtn').hidden = true;
-
+        // Do NOT transition to sDone here. The runtime handles what comes
+        // next (posting the deterministic intro lines + connect-llm dip).
+        // Showing the spinner before the runtime responds left the dip
+        // permanently stuck — there is no message path back to clear it.
+        // Just fire the lick and leave the wizard in its current step.
         if (window.slicc) {
           slicc.lick({ action: 'onboarding-complete', data: profile });
         }
